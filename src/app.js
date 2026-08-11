@@ -92,6 +92,27 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // ============================================================
+// API Root Info
+// ============================================================
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to ResQFood AI API',
+    version: '1.0.0',
+    documentation: `${req.protocol}://${req.get('host')}/api-docs`,
+    health: `${req.protocol}://${req.get('host')}/health`,
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      donations: '/api/donations',
+      requests: '/api/requests',
+      admin: '/api/admin',
+      notifications: '/api/notifications'
+    }
+  });
+});
+
+// ============================================================
 // API Routes
 // ============================================================
 app.use('/api/auth', authLimiter, authRoutes);
