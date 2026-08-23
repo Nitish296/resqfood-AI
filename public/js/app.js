@@ -403,7 +403,15 @@ function renderCreateDonation() {
           <div class="form-group"><label>Unit</label><select class="form-input" id="d-unit" required><option value="meals">Meals</option><option value="kg">Kg</option><option value="servings">Servings</option><option value="items">Items</option></select></div>
         </div>
         <div class="form-group"><label>Expiry Time</label><input class="form-input" type="datetime-local" id="d-expiry" required></div>
-        <div class="form-group"><label>Pickup Address</label><input class="form-input" id="d-address" placeholder="123 MG Road, Bangalore" required></div>
+        <div class="form-group">
+          <label>Pickup Address</label>
+          <input class="form-input" id="d-address" placeholder="e.g. 123 MG Road, Bangalore" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 15px;">
+          <button type="button" class="btn btn-secondary" id="btn-get-location" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span class="material-icons-round">my_location</span> Auto-detect My Location
+          </button>
+        </div>
         <div class="form-row">
           <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="any" id="d-lat" placeholder="12.9716" required></div>
           <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="any" id="d-lng" placeholder="77.5946" required></div>
@@ -412,6 +420,30 @@ function renderCreateDonation() {
       </form>
     </div>
   `;
+
+  // Auto-detect location click handler
+  document.getElementById('btn-get-location').onclick = () => {
+    if (!navigator.geolocation) {
+      toast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    toast('Detecting your location...', 'info');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        document.getElementById('d-lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('d-lng').value = pos.coords.longitude.toFixed(6);
+        toast('Location set successfully!', 'success');
+      },
+      (err) => {
+        console.error('Location error:', err);
+        // Fallback default coordinates if user denies or GPS fails
+        document.getElementById('d-lat').value = '12.9716';
+        document.getElementById('d-lng').value = '77.5946';
+        toast('Could not fetch exact GPS. Filled default coordinates.', 'warning');
+      },
+      { timeout: 8000 }
+    );
+  };
 
   // Set min expiry to now
   const now = new Date();
