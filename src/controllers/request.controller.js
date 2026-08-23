@@ -7,21 +7,24 @@ const { NOTIFICATION_TYPE, ENTITY_TYPE } = require('../utils/constants');
  * Get available requests for volunteers
  */
 const getAvailableRequests = async (req, res) => {
-  const { latitude, longitude, radius } = req.query;
-  const requests = await requestService.getAvailableRequests(
+  const { latitude, longitude, radius, page, limit } = req.query;
+  const result = await requestService.getAvailableRequests(
     parseFloat(latitude),
     parseFloat(longitude),
-    radius ? parseFloat(radius) : undefined
+    radius ? parseFloat(radius) : undefined,
+    page,
+    limit
   );
-  ApiResponse.success(res, 'Available requests retrieved successfully', requests);
+  res.status(200).json({ success: true, message: 'Available requests retrieved successfully', data: result.data, pagination: result.pagination });
 };
 
 /**
  * Get requests assigned to or accepted by the NGO
  */
 const getNgoRequests = async (req, res) => {
-  const requests = await requestService.getNgoRequests(req.user.id);
-  ApiResponse.success(res, 'Requests retrieved successfully', requests);
+  const { page, limit } = req.query;
+  const result = await requestService.getNgoRequests(req.user.id, page, limit);
+  res.status(200).json({ success: true, message: 'Requests retrieved successfully', data: result.data, pagination: result.pagination });
 };
 
 /**
@@ -75,10 +78,19 @@ const markDelivered = async (req, res) => {
   ApiResponse.success(res, 'Request marked as delivered', request);
 };
 
+/**
+ * Cancel request by NGO
+ */
+const cancelRequest = async (req, res) => {
+  const request = await requestService.cancelRequest(req.params.id, req.user.id);
+  ApiResponse.success(res, 'Request cancelled successfully', request);
+};
+
 module.exports = {
   getAvailableRequests,
   getNgoRequests,
   assignVolunteer,
   markPickedUp,
-  markDelivered
+  markDelivered,
+  cancelRequest
 };

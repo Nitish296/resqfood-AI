@@ -7,7 +7,11 @@ const { NOTIFICATION_TYPE, ENTITY_TYPE } = require('../utils/constants');
  * Create a new donation
  */
 const createDonation = async (req, res) => {
-  const donation = await donationService.createDonation(req.user.id, req.body);
+  const donationData = { ...req.body };
+  if (req.file) {
+    donationData.imageUrl = req.file.path;
+  }
+  const donation = await donationService.createDonation(req.user.id, donationData);
   
   // Optionally notify nearby NGOs
   // notificationService.notifyNearbyNGOs({lat: req.body.pickupLocation.latitude, lng: req.body.pickupLocation.longitude}, 'New donation available nearby', NOTIFICATION_TYPE.DONATION, ENTITY_TYPE.DONATION, donation._id);
@@ -19,8 +23,9 @@ const createDonation = async (req, res) => {
  * Get donations for the logged in donor
  */
 const getDonorDonations = async (req, res) => {
-  const donations = await donationService.getDonorDonations(req.user.id, req.query.status);
-  ApiResponse.success(res, 'Donations retrieved successfully', donations);
+  const { status, page, limit } = req.query;
+  const result = await donationService.getDonorDonations(req.user.id, status, page, limit);
+  res.status(200).json({ success: true, message: 'Donations retrieved successfully', data: result.data, pagination: result.pagination });
 };
 
 /**
@@ -35,14 +40,16 @@ const getDonationById = async (req, res) => {
  * Get available donations near location
  */
 const getAvailableDonations = async (req, res) => {
-  const { latitude, longitude, radius, foodType } = req.query;
-  const donations = await donationService.getAvailableDonations(
+  const { latitude, longitude, radius, foodType, page, limit } = req.query;
+  const result = await donationService.getAvailableDonations(
     parseFloat(latitude),
     parseFloat(longitude),
     radius ? parseFloat(radius) : undefined,
-    foodType
+    foodType,
+    page,
+    limit
   );
-  ApiResponse.success(res, 'Available donations retrieved successfully', donations);
+  res.status(200).json({ success: true, message: 'Available donations retrieved successfully', data: result.data, pagination: result.pagination });
 };
 
 /**
@@ -62,10 +69,19 @@ const acceptDonation = async (req, res) => {
   ApiResponse.success(res, 'Donation accepted successfully', { requestId: request._id });
 };
 
+/**
+ * Cancel a donation
+ */
+const cancelDonation = async (req, res) => {
+  const donation = await donationService.cancelDonation(req.params.id, req.user.id);
+  ApiResponse.success(res, 'Donation cancelled successfully', donation);
+};
+
 module.exports = {
   createDonation,
   getDonorDonations,
   getDonationById,
   getAvailableDonations,
-  acceptDonation
+  acceptDonation,
+  cancelDonation
 };

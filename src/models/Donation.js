@@ -55,6 +55,10 @@ const donationSchema = new mongoose.Schema({
   photoUrl: {
     type: String
   },
+  imageUrl: {
+    type: String,
+    default: null
+  },
   status: {
     type: String,
     enum: Object.values(DONATION_STATUS),

@@ -10,9 +10,11 @@ const { REQUEST_STATUS, DONATION_STATUS } = require('../utils/constants');
  * @param {number} lat
  * @param {number} lng
  * @param {number} radiusKm
- * @returns {Promise<Array>}
+ * @param {number} [page=1]
+ * @param {number} [limit=10]
+ * @returns {Promise<Object>}
  */
-const getAvailableRequests = async (lat, lng, radiusKm = 10) => {
+const getAvailableRequests = async (lat, lng, radiusKm = 10, page = 1, limit = 10) => {
   // Step 1: Find nearby donation IDs with accepted status (via their linked requests)
   const nearbyDonations = await Donation.find({
     'pickupLocation.coordinates': {
@@ -29,29 +31,46 @@ const getAvailableRequests = async (lat, lng, radiusKm = 10) => {
   const nearbyDonationIds = nearbyDonations.map(d => d._id);
 
   if (nearbyDonationIds.length === 0) {
-    return [];
+    return { data: [], pagination: { page, limit, total: 0, pages: 0 } };
   }
 
   // Step 2: Find unassigned requests for those nearby donations
-  const requests = await Request.find({
+  const query = {
     status: REQUEST_STATUS.ACCEPTED,
     donationId: { $in: nearbyDonationIds }
-  })
+  };
+  
+  const skip = (page - 1) * limit;
+  const total = await Request.countDocuments(query);
+  const data = await Request.find(query)
     .populate('donationId')
-    .populate('ngoId', 'username organizationName contactNumber address');
+    .populate('ngoId', 'username organizationName contactNumber address')
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
 
-  return requests;
+  return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 };
 
 /**
  * Get requests for an NGO
  * @param {string} ngoId
- * @returns {Promise<Array>}
+ * @param {number} [page=1]
+ * @param {number} [limit=10]
+ * @returns {Promise<Object>}
  */
-const getNgoRequests = async (ngoId) => {
-  return Request.find({ ngoId })
+const getNgoRequests = async (ngoId, page = 1, limit = 10) => {
+  const query = { ngoId };
+  const skip = (page - 1) * limit;
+  const total = await Request.countDocuments(query);
+  const data = await Request.find(query)
     .populate('donationId')
-    .populate('volunteerId', 'username contactNumber');
+    .populate('volunteerId', 'username contactNumber')
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+  
+  return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 };
 
 /**
@@ -141,10 +160,36 @@ const markDelivered = async (requestId, volunteerId) => {
   return request;
 };
 
+/**
+ * Cancel a request by NGO
+ * @param {string} requestId
+ * @param {string} userId
+ * @returns {Promise<Object>}
+ */
+const cancelRequest = async (requestId, userId) => {
+  const request = await Request.findById(requestId);
+  if (!request) {
+    throw ApiError.notFound('Request not found');
+  }
+  if (request.ngoId.toString() !== userId) {
+    throw ApiError.forbidden('You can only cancel your own requests');
+  }
+  if (request.status !== REQUEST_STATUS.ACCEPTED) {
+    throw ApiError.badRequest('Only accepted requests can be cancelled');
+  }
+  request.status = REQUEST_STATUS.CANCELLED;
+  await request.save();
+  
+  await Donation.findByIdAndUpdate(request.donationId, { status: DONATION_STATUS.PENDING, $unset: { acceptedByNgoId: "" } });
+  
+  return request;
+};
+
 module.exports = {
   getAvailableRequests,
   getNgoRequests,
   assignVolunteer,
   markPickedUp,
-  markDelivered
+  markDelivered,
+  cancelRequest
 };

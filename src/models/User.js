@@ -24,7 +24,11 @@ const userSchema = new mongoose.Schema({
   },
   passwordHash: {
     type: String,
-    required: true
+    required: false // Optional for Google OAuth users
+  },
+  googleId: {
+    type: String,
+    sparse: true
   },
   role: {
     type: String,

@@ -65,6 +65,13 @@ app.use(express.urlencoded({ extended: true }));
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Serve Google Client ID to frontend (injected into page)
+app.get('/config.js', (req, res) => {
+  res.type('application/javascript');
+  const clientId = process.env.GOOGLE_CLIENT_ID || '';
+  res.send(`window.GOOGLE_CLIENT_ID = "${clientId}";`);
+});
+
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev', {
     skip: (req) => req.url === '/health',

@@ -35,6 +35,9 @@ const startServer = async () => {
       console.log(`========================================\n`);
     });
 
+    const { startAutoExpiryCron } = require('./src/jobs/autoExpiry');
+    startAutoExpiryCron();
+
     // Graceful shutdown
     const gracefulShutdown = (signal) => {
       console.log(`\n[Server] ${signal} received. Starting graceful shutdown...`);

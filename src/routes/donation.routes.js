@@ -9,6 +9,7 @@ const { authenticate } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleAuth');
 const { validate } = require('../middleware/validate');
 const { createDonationValidation, availableDonationsValidation } = require('../validators/donation.validator');
+const upload = require('../middleware/upload');
 
 /**
  * @openapi
@@ -23,7 +24,7 @@ const { createDonationValidation, availableDonationsValidation } = require('../v
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -36,6 +37,10 @@ const { createDonationValidation, availableDonationsValidation } = require('../v
  *                   type: object
  *               pickupLocation:
  *                 type: object
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image of the food donation
  *     responses:
  *       201:
  *         description: Donation created
@@ -46,7 +51,13 @@ const { createDonationValidation, availableDonationsValidation } = require('../v
  *       403:
  *         description: Forbidden (Not a Donor)
  */
-router.post('/', authenticate, authorize('Donor'), validate(createDonationValidation), donationController.createDonation);
+router.post('/', authenticate, authorize('Donor'), (req, res, next) => {
+  // Only process upload if content-type is multipart/form-data
+  if (req.is('multipart/form-data')) {
+    return upload.single('image')(req, res, next);
+  }
+  next();
+}, validate(createDonationValidation), donationController.createDonation);
 
 /**
  * @openapi
@@ -154,5 +165,35 @@ router.get('/:id', authenticate, donationController.getDonationById);
  *         description: Donation not found
  */
 router.post('/:id/accept', authenticate, authorize('NGO'), donationController.acceptDonation);
+
+/**
+ * @openapi
+ * /api/donations/{id}/cancel:
+ *   put:
+ *     summary: Cancel a donation
+ *     description: Allows a Donor to cancel their own pending donation
+ *     tags:
+ *       - Donations
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Donation cancelled successfully
+ *       400:
+ *         description: Only pending donations can be cancelled
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Not a Donor or not your donation)
+ *       404:
+ *         description: Donation not found
+ */
+router.put('/:id/cancel', authenticate, authorize('Donor'), donationController.cancelDonation);
 
 module.exports = router;

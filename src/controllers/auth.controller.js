@@ -42,7 +42,37 @@ const login = async (req, res) => {
   });
 };
 
+/**
+ * Google OAuth Login
+ */
+const googleLogin = async (req, res) => {
+  const { idToken, role } = req.body;
+  const result = await authService.googleLogin(idToken, role);
+
+  ApiResponse.success(res, 'Google login successful', {
+    userId: result.user._id,
+    role: result.user.role,
+    token: result.token,
+    refreshToken: result.refreshToken
+  });
+};
+
+/**
+ * Refresh token
+ */
+const refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+  const result = await authService.refreshTokens(refreshToken);
+  
+  ApiResponse.success(res, 'Token refreshed', {
+    token: result.token,
+    refreshToken: result.refreshToken
+  });
+};
+
 module.exports = {
   register,
-  login
+  login,
+  googleLogin,
+  refreshToken
 };

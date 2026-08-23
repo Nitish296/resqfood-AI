@@ -137,4 +137,34 @@ router.put('/:id/pickup', authenticate, authorize('Volunteer'), requestControlle
  */
 router.put('/:id/deliver', authenticate, authorize('Volunteer'), requestController.markDelivered);
 
+/**
+ * @openapi
+ * /api/requests/{id}/cancel:
+ *   put:
+ *     summary: Cancel a request
+ *     description: Allows an NGO to cancel their own accepted request
+ *     tags:
+ *       - Requests
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request cancelled successfully
+ *       400:
+ *         description: Only accepted requests can be cancelled
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Not an NGO or not your request)
+ *       404:
+ *         description: Request not found
+ */
+router.put('/:id/cancel', authenticate, authorize('NGO'), requestController.cancelRequest);
+
 module.exports = router;

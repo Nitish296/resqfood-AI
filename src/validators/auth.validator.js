@@ -35,7 +35,13 @@ const loginValidation = [
     .notEmpty().withMessage('Password is required')
 ];
 
+const refreshTokenValidation = [
+  body('refreshToken')
+    .notEmpty().withMessage('Refresh token is required')
+];
+
 module.exports = {
   registerValidation,
-  loginValidation
+  loginValidation,
+  refreshTokenValidation
 };
