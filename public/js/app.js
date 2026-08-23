@@ -429,17 +429,36 @@ function renderCreateDonation() {
     }
     toast('Detecting your location...', 'info');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        document.getElementById('d-lat').value = pos.coords.latitude.toFixed(6);
-        document.getElementById('d-lng').value = pos.coords.longitude.toFixed(6);
-        toast('Location set successfully!', 'success');
+      async (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        document.getElementById('d-lat').value = lat;
+        document.getElementById('d-lng').value = lng;
+        
+        // Reverse-geocode coordinates to actual street address via free OpenStreetMap API
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const data = await res.json();
+          if (data && data.display_name) {
+            document.getElementById('d-address').value = data.display_name;
+            toast('Address & coordinates detected!', 'success');
+            return;
+          }
+        } catch (e) {
+          console.warn('Reverse geocoding error:', e);
+        }
+
+        toast('Coordinates detected! Please review address.', 'success');
       },
       (err) => {
         console.error('Location error:', err);
         // Fallback default coordinates if user denies or GPS fails
         document.getElementById('d-lat').value = '12.9716';
         document.getElementById('d-lng').value = '77.5946';
-        toast('Could not fetch exact GPS. Filled default coordinates.', 'warning');
+        if (!document.getElementById('d-address').value) {
+          document.getElementById('d-address').value = 'MG Road, Bangalore';
+        }
+        toast('Could not fetch exact GPS. Filled default location.', 'warning');
       },
       { timeout: 8000 }
     );
