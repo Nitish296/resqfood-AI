@@ -66,7 +66,7 @@ const getDonationById = async (donationId) => {
  * @param {number} [limit=10]
  * @returns {Promise<Object>}
  */
-const getAvailableDonations = async (lat, lng, radiusKm = 10, foodType, page = 1, limit = 10) => {
+const getAvailableDonations = async (lat, lng, radiusKm = 100, foodType, page = 1, limit = 10) => {
   const maxDistance = radiusKm * 1000;
   
   const query = {

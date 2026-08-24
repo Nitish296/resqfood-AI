@@ -520,14 +520,36 @@ async function renderAvailableDonations() {
       <form id="search-form" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
         <div class="form-group" style="margin:0"><label>Latitude</label><input class="form-input" type="number" step="any" id="s-lat" value="12.9716" required></div>
         <div class="form-group" style="margin:0"><label>Longitude</label><input class="form-input" type="number" step="any" id="s-lng" value="77.5946" required></div>
-        <div class="form-group" style="margin:0"><label>Radius (km)</label><input class="form-input" type="number" id="s-radius" value="10" min="1" max="100"></div>
+        <div class="form-group" style="margin:0"><label>Radius (km)</label><input class="form-input" type="number" id="s-radius" value="100" min="1" max="5000"></div>
         <button class="btn btn-primary" type="submit"><span class="material-icons-round">search</span> Search</button>
+        <button type="button" class="btn btn-secondary" id="btn-ngo-location" style="display:flex;align-items:center;gap:4px;">
+          <span class="material-icons-round">my_location</span> Detect Location
+        </button>
       </form>
     </div>
-    <div id="available-list"><p style="color:var(--text-secondary);">Enter coordinates and search.</p></div>
+    <div id="available-list"><div class="spinner"></div></div>
   `;
 
-  document.getElementById('search-form').onsubmit = async (e) => {
+  const searchForm = document.getElementById('search-form');
+
+  document.getElementById('btn-ngo-location').onclick = () => {
+    if (!navigator.geolocation) {
+      toast('Geolocation not supported', 'error');
+      return;
+    }
+    toast('Detecting your location...', 'info');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      document.getElementById('s-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('s-lng').value = pos.coords.longitude.toFixed(6);
+      toast('Location updated!', 'success');
+      searchForm.dispatchEvent(new Event('submit'));
+    }, (err) => {
+      console.error(err);
+      toast('GPS failed. Use manual search or increase radius.', 'warning');
+    });
+  };
+
+  searchForm.onsubmit = async (e) => {
     e.preventDefault();
     const lat = document.getElementById('s-lat').value;
     const lng = document.getElementById('s-lng').value;
@@ -537,14 +559,24 @@ async function renderAvailableDonations() {
       const donations = res.data || [];
       document.getElementById('available-list').innerHTML = donations.length
         ? donations.map(d => donationCard(d, true)).join('')
-        : emptyState('No donations found', 'Try increasing the search radius');
+        : emptyState('No donations found in this radius', 'Try increasing the radius to 500km or click "Detect Location"');
     } catch (err) {
       toast(err.message, 'error');
     }
   };
 
-  // Auto-search on load
-  document.getElementById('search-form').dispatchEvent(new Event('submit'));
+  // Auto-detect location on load if possible
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      document.getElementById('s-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('s-lng').value = pos.coords.longitude.toFixed(6);
+      searchForm.dispatchEvent(new Event('submit'));
+    }, () => {
+      searchForm.dispatchEvent(new Event('submit'));
+    });
+  } else {
+    searchForm.dispatchEvent(new Event('submit'));
+  }
 }
 
 // ============================================================
