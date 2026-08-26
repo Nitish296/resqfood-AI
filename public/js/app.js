@@ -19,12 +19,17 @@ const State = {
 // API Helper
 // ============================================================
 async function api(method, path, body = null) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
+  const opts = { method, headers: {} };
   if (State.token) opts.headers['Authorization'] = `Bearer ${State.token}`;
-  if (body) opts.body = JSON.stringify(body);
+  
+  if (body) {
+    if (body instanceof FormData) {
+      opts.body = body; // fetch automatically sets multipart boundary
+    } else {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+  }
 
   const res = await fetch(`${API}${path}`, opts);
   const data = await res.json();
@@ -403,6 +408,7 @@ function renderCreateDonation() {
           <div class="form-group"><label>Unit</label><select class="form-input" id="d-unit" required><option value="meals">Meals</option><option value="kg">Kg</option><option value="servings">Servings</option><option value="items">Items</option></select></div>
         </div>
         <div class="form-group"><label>Expiry Time</label><input class="form-input" type="datetime-local" id="d-expiry" required></div>
+        <div class="form-group"><label>Food Photo (Optional)</label><input class="form-input" type="file" id="d-image" accept="image/*"></div>
         <div class="form-group">
           <label>Pickup Address</label>
           <input class="form-input" id="d-address" placeholder="e.g. 123 MG Road, Bangalore" required>
@@ -472,17 +478,33 @@ function renderCreateDonation() {
   document.getElementById('donation-form').onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await api('POST', '/api/donations', {
-        foodType: document.getElementById('d-foodType').value,
-        quantity: parseFloat(document.getElementById('d-quantity').value),
-        unit: document.getElementById('d-unit').value,
-        expiryTime: new Date(document.getElementById('d-expiry').value).toISOString(),
-        pickupLocation: {
-          address: document.getElementById('d-address').value,
-          latitude: parseFloat(document.getElementById('d-lat').value),
-          longitude: parseFloat(document.getElementById('d-lng').value),
-        },
-      });
+      const fileInput = document.getElementById('d-image');
+      if (fileInput && fileInput.files[0]) {
+        const formData = new FormData();
+        formData.append('foodType', document.getElementById('d-foodType').value);
+        formData.append('quantity', document.getElementById('d-quantity').value);
+        formData.append('unit', document.getElementById('d-unit').value);
+        formData.append('expiryTime', new Date(document.getElementById('d-expiry').value).toISOString());
+        formData.append('pickupLocation[address]', document.getElementById('d-address').value);
+        formData.append('pickupLocation[latitude]', document.getElementById('d-lat').value);
+        formData.append('pickupLocation[longitude]', document.getElementById('d-lng').value);
+        formData.append('image', fileInput.files[0]);
+
+        await api('POST', '/api/donations', formData);
+      } else {
+        await api('POST', '/api/donations', {
+          foodType: document.getElementById('d-foodType').value,
+          quantity: parseFloat(document.getElementById('d-quantity').value),
+          unit: document.getElementById('d-unit').value,
+          expiryTime: new Date(document.getElementById('d-expiry').value).toISOString(),
+          pickupLocation: {
+            address: document.getElementById('d-address').value,
+            latitude: parseFloat(document.getElementById('d-lat').value),
+            longitude: parseFloat(document.getElementById('d-lng').value),
+          },
+        });
+      }
+
       toast('Donation created successfully!', 'success');
       App.navigate('my-donations');
     } catch (err) {
@@ -709,8 +731,10 @@ function statusBadge(status) {
 
 function donationCard(d, showAccept = false) {
   const donor = d.donorId?.username || d.donorId?.email || '—';
+  const imgUrl = d.imageUrl || d.photoUrl;
   return `
     <div class="card">
+      ${imgUrl ? `<div style="margin:-16px -16px 12px -16px; overflow:hidden; border-radius:var(--radius-sm) var(--radius-sm) 0 0;"><img src="${imgUrl}" alt="${d.foodType}" style="width:100%; max-height:180px; object-fit:cover; display:block;"></div>` : ''}
       <div class="card-header">
         <h3>${d.foodType}</h3>
         ${statusBadge(d.status)}
