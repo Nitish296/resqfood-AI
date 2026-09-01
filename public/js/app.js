@@ -426,9 +426,9 @@ async function renderDashboard() {
     <div class="card" style="margin-bottom:28px;">
       <div class="card-header">
         <h3 style="display:flex;align-items:center;gap:8px;">
-          <span class="material-icons-round" style="color:var(--accent);">map</span> Live Food Rescue Mesh
+          <span class="material-icons-round" style="color:var(--accent);">map</span> Donation Map
         </h3>
-        <span class="badge badge-accepted">Real-Time Sync</span>
+        <span class="badge badge-accepted">Live</span>
       </div>
       <div id="map-container"></div>
     </div>
