@@ -366,9 +366,9 @@ function initInteractiveMap(containerId, centerLat = 12.9716, centerLng = 77.594
       zoomControl: false,
     });
 
-    // Light Map Tiles (CartoDB Voyager)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    // OpenStreetMap Tiles (free, no API key)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map);
 
