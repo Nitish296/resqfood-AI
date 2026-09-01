@@ -3,39 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ResQFood AI — Fight Food Waste</title>
-  <meta name="description" content="AI-powered food redistribution platform connecting donors with NGOs and shelters.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>ResQFood AI — Next-Gen Food Rescue System</title>
+  <meta name="description" content="Autonomous AI-driven food redistribution engine connecting surplus food donors with NGOs and logistics networks in real time.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <!-- Leaflet Maps CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <link rel="stylesheet" href="/css/styles.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Leaflet Maps JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
+  <!-- Ambient Particle Glow Canvas -->
+  <canvas id="bg-canvas"></canvas>
+  <div class="glow-orb glow-orb-1"></div>
+  <div class="glow-orb glow-orb-2"></div>
+
   <!-- Toast Container -->
   <div id="toast-container"></div>
 
-  <!-- App Root -->
+  <!-- Main Application Wrapper -->
   <div id="app">
-    <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar hidden">
-      <div class="sidebar-brand">
-        <span class="brand-icon">🍽️</span>
-        <h1>ResQFood</h1>
+    <!-- Top System Header (Active when logged in) -->
+    <header id="top-header" class="top-header hidden">
+      <div class="top-brand">
+        <div class="brand-logo-icon">
+          <span class="material-icons-round">volunteer_activism</span>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">ResQFood <span class="ai-badge">AI 2.0</span></span>
+          <span class="brand-sub">Autonomous Redistribution Mesh</span>
+        </div>
       </div>
-      <nav id="nav-menu" class="nav-menu"></nav>
-      <div class="sidebar-footer">
-        <div id="user-info" class="user-info"></div>
-        <button id="btn-logout" class="btn-logout" onclick="App.logout()">
-          <span class="material-icons-round">logout</span>
-          Logout
+
+      <div class="header-status-pill">
+        <span class="status-pulse"></span>
+        <span class="status-text">AI Engine: <strong style="color:var(--accent);">ONLINE</strong></span>
+        <span class="divider">•</span>
+        <span class="status-meta"><span class="material-icons-round" style="font-size:14px;vertical-align:middle;">radar</span> Geo-Radar Active</span>
+      </div>
+
+      <div class="header-actions">
+        <div id="user-header-profile" class="header-user-profile"></div>
+        <button id="btn-logout" class="btn-icon-logout" title="Sign Out" onclick="App.logout()">
+          <span class="material-icons-round">power_settings_new</span>
         </button>
       </div>
-    </aside>
+    </header>
 
-    <!-- Main Content -->
-    <main id="main-content" class="main-content">
-      <!-- Content injected by JS -->
-    </main>
+    <!-- App Body Layout -->
+    <div class="app-body">
+      <!-- Sidebar Navigation -->
+      <aside id="sidebar" class="sidebar hidden">
+        <div class="sidebar-brand-mobile">
+          <span class="brand-icon">🍽️</span>
+          <h2>ResQFood AI</h2>
+        </div>
+        <nav id="nav-menu" class="nav-menu"></nav>
+        <div class="sidebar-footer">
+          <div id="user-info" class="user-info"></div>
+        </div>
+      </aside>
+
+      <!-- Main Dynamic Content Container -->
+      <main id="main-content" class="main-content">
+        <!-- Content injected by JS -->
+      </main>
+    </div>
   </div>
 
   <script src="/config.js"></script>
