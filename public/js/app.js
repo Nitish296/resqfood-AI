@@ -366,8 +366,8 @@ function initInteractiveMap(containerId, centerLat = 12.9716, centerLng = 77.594
       zoomControl: false,
     });
 
-    // Dark Map Tiles (CartoDB Dark Matter)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Light Map Tiles (CartoDB Voyager)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(map);
@@ -377,7 +377,7 @@ function initInteractiveMap(containerId, centerLat = 12.9716, centerLng = 77.594
     // Custom Icon helper
     const greenIcon = L.divIcon({
       className: 'custom-map-pin',
-      html: `<div style="background:var(--accent);width:16px;height:16px;border-radius:50%;box-shadow:0 0 15px var(--accent);border:2px solid white;"></div>`,
+      html: `<div style="background:#6366f1;width:16px;height:16px;border-radius:50%;box-shadow:0 0 12px rgba(99,102,241,0.5);border:2.5px solid white;"></div>`,
       iconSize: [20, 20],
       iconAnchor: [10, 10]
     });
@@ -971,46 +971,38 @@ function initParticleCanvas() {
     height = canvas.height = window.innerHeight;
   };
 
-  const particles = Array.from({ length: 45 }, () => ({
-    x: Math.random() * width,
-    y: Math.random() * height,
-    vx: (Math.random() - 0.5) * 0.4,
-    vy: (Math.random() - 0.5) * 0.4,
-    radius: Math.random() * 2 + 1,
-  }));
+  // Flowing gradient blobs - soft pastel AI mesh
+  const blobs = [
+    { x: width * 0.3, y: height * 0.3, r: 280, vx: 0.3, vy: 0.2, color: 'rgba(139, 92, 246, 0.08)' },
+    { x: width * 0.7, y: height * 0.6, r: 320, vx: -0.25, vy: 0.15, color: 'rgba(59, 130, 246, 0.06)' },
+    { x: width * 0.5, y: height * 0.8, r: 250, vx: 0.2, vy: -0.3, color: 'rgba(16, 185, 129, 0.06)' },
+    { x: width * 0.2, y: height * 0.7, r: 200, vx: 0.15, vy: -0.15, color: 'rgba(244, 114, 182, 0.05)' },
+    { x: width * 0.8, y: height * 0.2, r: 260, vx: -0.2, vy: 0.25, color: 'rgba(99, 102, 241, 0.07)' },
+  ];
+
+  let t = 0;
 
   function animate() {
     ctx.clearRect(0, 0, width, height);
+    t += 0.003;
 
-    // Draw connecting lines
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const dx = particles[i].x - particles[j].x;
-        const dy = particles[i].y - particles[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+    blobs.forEach((b, i) => {
+      // Organic floating motion using sine waves
+      const offsetX = Math.sin(t + i * 1.5) * 60;
+      const offsetY = Math.cos(t + i * 2.1) * 40;
+      const scale = 1 + Math.sin(t + i) * 0.15;
 
-        if (dist < 130) {
-          ctx.beginPath();
-          ctx.strokeStyle = `rgba(16, 185, 129, ${0.12 * (1 - dist / 130)})`;
-          ctx.lineWidth = 1;
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.stroke();
-        }
-      }
-    }
+      const cx = b.x + offsetX;
+      const cy = b.y + offsetY;
+      const cr = b.r * scale;
 
-    // Move particles
-    particles.forEach(p => {
-      p.x += p.vx;
-      p.y += p.vy;
-
-      if (p.x < 0 || p.x > width) p.vx *= -1;
-      if (p.y < 0 || p.y > height) p.vy *= -1;
+      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+      gradient.addColorStop(0, b.color);
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
       ctx.fill();
     });
 
