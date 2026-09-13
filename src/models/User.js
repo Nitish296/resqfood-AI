@@ -76,6 +76,9 @@ userSchema.pre('save', async function () {
 
 // Instance method for password comparison
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.passwordHash) {
+    return false; // Account registered via Google OAuth or no password set
+  }
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 

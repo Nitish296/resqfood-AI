@@ -28,14 +28,20 @@ const register = async (userData) => {
  * @returns {Promise<Object>}
  */
 const login = async (email, password) => {
-  const user = await User.findByEmail(email);
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  const user = await User.findByEmail(normalizedEmail);
   if (!user) {
-    throw ApiError.unauthorized('Invalid credentials');
+    throw ApiError.unauthorized('Invalid email or password');
+  }
+
+  // Account created via Google Sign-In with no password set
+  if (!user.passwordHash) {
+    throw ApiError.badRequest('This account was created with Google Sign-In. Please click "Sign in with Google" instead.');
   }
 
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
-    throw ApiError.unauthorized('Invalid credentials');
+    throw ApiError.unauthorized('Invalid email or password');
   }
 
   const token = generateToken(user._id, user.role, user.email);
@@ -52,8 +58,7 @@ const login = async (email, password) => {
  * @returns {string}
  */
 const generateToken = (userId, role, email) => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET environment variable is required');
+  const secret = process.env.JWT_SECRET || 'resqfood_dev_jwt_secret_key_min_256_bit_change_in_production';
   const expiresIn = process.env.JWT_EXPIRES_IN || '1h';
   return jwt.sign({ sub: userId, role, email }, secret, { expiresIn });
 };
@@ -64,8 +69,7 @@ const generateToken = (userId, role, email) => {
  * @returns {string}
  */
 const generateRefreshToken = (userId) => {
-  const secret = process.env.JWT_REFRESH_SECRET;
-  if (!secret) throw new Error('JWT_REFRESH_SECRET environment variable is required');
+  const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'resqfood_dev_jwt_refresh_secret_key_change_in_production';
   const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
   return jwt.sign({ sub: userId }, secret, { expiresIn });
 };
@@ -150,9 +154,7 @@ const googleLogin = async (idToken, role = 'Donor') => {
  */
 const refreshTokens = async (refreshTokenStr) => {
   try {
-    const secret = process.env.JWT_REFRESH_SECRET;
-    if (!secret) throw new Error('JWT_REFRESH_SECRET environment variable is required');
-    
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'resqfood_dev_jwt_refresh_secret_key_change_in_production';
     const decoded = jwt.verify(refreshTokenStr, secret);
     const user = await User.findById(decoded.sub);
     
