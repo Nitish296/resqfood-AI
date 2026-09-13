@@ -460,9 +460,9 @@ async function renderDashboard() {
         <div class="stat-card"><div class="stat-icon green"><span class="material-icons-round">local_shipping</span></div><div class="stat-info"><div class="stat-value">${delivered}</div><div class="stat-label">Delivered</div></div></div>
       `;
 
-      // Map markers from donor's donations
+      // Map markers from donor's donations (excluding Cancelled donations)
       const markers = donations
-        .filter(d => d.pickupLocation?.coordinates?.length === 2)
+        .filter(d => d.pickupLocation?.coordinates?.length === 2 && d.status !== 'Cancelled')
         .map(d => ({
           lat: d.pickupLocation.coordinates[1],
           lng: d.pickupLocation.coordinates[0],
@@ -470,9 +470,9 @@ async function renderDashboard() {
           details: `${d.quantity} ${d.unit} • Status: ${d.status}`
         }));
 
-      // Center map on first donation, or default to user's location
-      const defaultLat = markers.length ? markers[0].lat : 20.5937;
-      const defaultLng = markers.length ? markers[0].lng : 78.9629;
+      // Center map on first active donation, or default to North India (Haryana / NCR)
+      const defaultLat = markers.length ? markers[0].lat : 28.7041;
+      const defaultLng = markers.length ? markers[0].lng : 77.1025;
       setTimeout(() => initInteractiveMap('map-container', defaultLat, defaultLng, markers), 100);
 
       document.getElementById('dashboard-content').innerHTML = `
@@ -559,17 +559,25 @@ function renderCreateDonation() {
           <input class="form-input" type="file" id="d-image" accept="image/*">
         </div>
         <div class="form-group">
-          <label>Pickup Street Address</label>
-          <input class="form-input" id="d-address" placeholder="e.g. 123 MG Road, Bangalore" required>
+          <label>Pickup Street Address / City</label>
+          <div style="display:flex;gap:8px;">
+            <input class="form-input" id="d-address" placeholder="e.g. Model Town, Panipat, Haryana" required>
+            <button type="button" class="btn btn-secondary" id="btn-search-address" title="Lookup GPS coordinates from address" style="white-space:nowrap;">
+              <span class="material-icons-round">search</span> Search Address
+            </button>
+          </div>
+          <small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">
+            💡 Type your address or city in Haryana and click "Search Address", or use Auto-Detect GPS.
+          </small>
         </div>
         <div class="form-group" style="margin-bottom: 20px;">
           <button type="button" class="btn btn-secondary" id="btn-get-location" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;">
-            <span class="material-icons-round" style="color:var(--accent);">my_location</span> 📍 Auto-Detect GPS & Address
+            <span class="material-icons-round" style="color:var(--accent);">my_location</span> Auto-Detect Device GPS
           </button>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="any" id="d-lat" placeholder="12.9716" required></div>
-          <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="any" id="d-lng" placeholder="77.5946" required></div>
+          <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="any" id="d-lat" placeholder="29.0588" required></div>
+          <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="any" id="d-lng" placeholder="76.0856" required></div>
         </div>
         <button class="btn btn-primary btn-full" type="submit">
           <span class="material-icons-round">publish</span> Submit Donation to Mesh
@@ -578,13 +586,47 @@ function renderCreateDonation() {
     </div>
   `;
 
-  // Auto-detect location click handler
+  // Search address geocoding handler
+  const searchAddress = async () => {
+    const q = document.getElementById('d-address').value.trim();
+    if (!q) {
+      toast('Please enter a street address or city first', 'warning');
+      return;
+    }
+    toast('Locating address on map...', 'info');
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat).toFixed(6);
+        const lng = parseFloat(data[0].lon).toFixed(6);
+        document.getElementById('d-lat').value = lat;
+        document.getElementById('d-lng').value = lng;
+        document.getElementById('d-address').value = data[0].display_name;
+        toast(`Coordinates updated for ${data[0].name || q}!`, 'success');
+      } else {
+        toast('Address not found. Please add city or state (e.g. Haryana).', 'warning');
+      }
+    } catch (e) {
+      toast('Could not locate address automatically. You can enter coordinates manually.', 'error');
+    }
+  };
+
+  document.getElementById('btn-search-address').onclick = searchAddress;
+  document.getElementById('d-address').onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchAddress();
+    }
+  };
+
+  // Auto-detect location click handler with high accuracy
   document.getElementById('btn-get-location').onclick = () => {
     if (!navigator.geolocation) {
       toast('Geolocation is not supported by your browser', 'error');
       return;
     }
-    toast('Detecting GPS & street address...', 'info');
+    toast('Detecting high-precision GPS...', 'info');
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude.toFixed(6);
@@ -597,22 +639,17 @@ function renderCreateDonation() {
           const data = await res.json();
           if (data && data.display_name) {
             document.getElementById('d-address').value = data.display_name;
-            toast('Address & GPS coordinates auto-detected!', 'success');
+            toast('GPS & address detected! You can edit address if needed.', 'success');
             return;
           }
         } catch (e) { console.warn(e); }
 
-        toast('GPS set! Please review address.', 'success');
+        toast('GPS coordinates detected!', 'success');
       },
       (err) => {
-        document.getElementById('d-lat').value = '12.9716';
-        document.getElementById('d-lng').value = '77.5946';
-        if (!document.getElementById('d-address').value) {
-          document.getElementById('d-address').value = 'MG Road, Bangalore';
-        }
-        toast('Used default coordinates.', 'warning');
+        toast('Device GPS unavailable. Type your city/address above and click "Search Address"!', 'warning');
       },
-      { timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -693,12 +730,12 @@ async function renderAvailableDonations() {
     <!-- Search Controls -->
     <div class="card" style="margin-bottom:24px;">
       <form id="search-form" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
-        <div class="form-group" style="margin:0"><label>Latitude</label><input class="form-input" type="number" step="any" id="s-lat" value="12.9716" required></div>
-        <div class="form-group" style="margin:0"><label>Longitude</label><input class="form-input" type="number" step="any" id="s-lng" value="77.5946" required></div>
+        <div class="form-group" style="margin:0"><label>Latitude</label><input class="form-input" type="number" step="any" id="s-lat" value="28.7041" required></div>
+        <div class="form-group" style="margin:0"><label>Longitude</label><input class="form-input" type="number" step="any" id="s-lng" value="77.1025" required></div>
         <div class="form-group" style="margin:0"><label>Radius (km)</label><input class="form-input" type="number" id="s-radius" value="100" min="1" max="5000"></div>
         <button class="btn btn-primary" type="submit"><span class="material-icons-round">radar</span> Run Radar</button>
         <button type="button" class="btn btn-secondary" id="btn-ngo-location">
-          <span class="material-icons-round">my_location</span> Detect Location
+          <span class="material-icons-round">my_location</span> Detect GPS
         </button>
       </form>
     </div>
@@ -719,13 +756,19 @@ async function renderAvailableDonations() {
       toast('Geolocation not supported', 'error');
       return;
     }
-    toast('Detecting GPS location...', 'info');
-    navigator.geolocation.getCurrentPosition((pos) => {
-      document.getElementById('s-lat').value = pos.coords.latitude.toFixed(6);
-      document.getElementById('s-lng').value = pos.coords.longitude.toFixed(6);
-      toast('Location updated!', 'success');
-      searchForm.dispatchEvent(new Event('submit'));
-    });
+    toast('Detecting high-precision GPS...', 'info');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        document.getElementById('s-lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('s-lng').value = pos.coords.longitude.toFixed(6);
+        toast('Location updated!', 'success');
+        searchForm.dispatchEvent(new Event('submit'));
+      },
+      (err) => {
+        toast('Could not detect GPS. You can enter latitude/longitude manually.', 'warning');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
   };
 
   searchForm.onsubmit = async (e) => {
