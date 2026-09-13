@@ -21,7 +21,11 @@ const app = express();
 // ============================================================
 // Security Middleware
 // ============================================================
-app.use(helmet({ contentSecurityPolicy: false })); // Disable CSP for Swagger UI
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for Swagger UI and external CDNs
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, // Allow Google OAuth popup to communicate with opener
+  crossOriginResourcePolicy: false,
+}));
 
 // CORS
 const corsOptions = {
