@@ -178,55 +178,62 @@ async function handleRegister(e) {
 // ============================================================
 // Google Sign-In Integration
 // ============================================================
+// Google OAuth Authentication
+// ============================================================
 function initGoogleButton(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  if (!window.GOOGLE_CLIENT_ID || window.GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
-    container.innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:13px;">Google Sign-In not configured</p>';
-    return;
+  const clientId = window.GOOGLE_CLIENT_ID || '331103687284-b4l0gphhglaet2n48b2d4b262i639pij.apps.googleusercontent.com';
+
+  function render() {
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+      setTimeout(render, 150);
+      return;
+    }
+
+    try {
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response) => {
+          const role = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'Donor';
+          try {
+            toast('Verifying Google credentials...', 'info');
+            const res = await api('POST', '/api/auth/google', {
+              idToken: response.credential,
+              role: role,
+            });
+            State.token = res.data.token;
+            localStorage.setItem('resqfood_token', res.data.token);
+            toast('Google Sign-In successful!', 'success');
+            await loadUser();
+          } catch (err) {
+            toast(err.message || 'Google sign-in failed', 'error');
+          }
+        },
+        auto_select: false,
+      });
+
+      // Clear container and render official Google Sign-In button
+      container.innerHTML = '';
+      google.accounts.id.renderButton(container, {
+        theme: 'outline',
+        size: 'large',
+        type: 'standard',
+        shape: 'pill',
+        text: 'continue_with',
+        logo_alignment: 'center',
+        width: 320,
+      });
+
+      // Also trigger one-tap if browser allows
+      google.accounts.id.prompt();
+    } catch (err) {
+      console.error('Google button render error:', err);
+    }
   }
 
-  container.innerHTML = `
-    <button type="button" class="btn-google" onclick="triggerGoogleSignIn()">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Continue with Google
-    </button>`;
-}
-
-function triggerGoogleSignIn() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    toast('Google Sign-In is initializing. Please try again.', 'error');
-    return;
-  }
-
-  try {
-    google.accounts.id.initialize({
-      client_id: window.GOOGLE_CLIENT_ID,
-      callback: function(response) {
-        var role = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'Donor';
-        api('POST', '/api/auth/google', {
-          idToken: response.credential,
-          role: role,
-        }).then(function(res) {
-          State.token = res.data.token;
-          localStorage.setItem('resqfood_token', res.data.token);
-          toast('Google Sign-In successful!', 'success');
-          loadUser();
-        }).catch(function(err) {
-          toast(err.message || 'Google sign-in failed', 'error');
-        });
-      },
-    });
-
-    google.accounts.id.prompt(function(notification) {
-      if (notification.isNotDisplayed()) {
-        toast('Google popup blocked. Please allow popups or try again.', 'error');
-      }
-    });
-  } catch (err) {
-    toast('Google Sign-In error: ' + err.message, 'error');
-  }
+  render();
 }
 
 async function loadUser() {
