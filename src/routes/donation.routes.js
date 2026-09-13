@@ -115,7 +115,7 @@ router.get('/donor', authenticate, authorize('Donor'), donationController.getDon
  *       403:
  *         description: Forbidden (Not an NGO)
  */
-router.get('/available', authenticate, authorize('NGO'), validate(availableDonationsValidation), donationController.getAvailableDonations);
+router.get('/available', authenticate, authorize('NGO', 'Volunteer', 'Admin'), validate(availableDonationsValidation), donationController.getAvailableDonations);
 
 /**
  * @openapi

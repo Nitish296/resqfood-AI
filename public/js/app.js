@@ -521,42 +521,68 @@ async function renderDashboard() {
 
       setTimeout(() => initInteractiveMap('map-container', 12.9716, 77.5946, []), 100);
     } else {
-      // Volunteer Dashboard: load available delivery tasks
+      // Volunteer Dashboard: load available delivery tasks AND available surplus food
       let requests = [];
+      let donations = [];
       try {
-        const res = await api('GET', '/api/requests/available?latitude=28.7041&longitude=77.1025&radius=1000');
-        requests = res.data || [];
+        const [reqRes, donRes] = await Promise.all([
+          api('GET', '/api/requests/available?latitude=28.7041&longitude=77.1025&radius=1000').catch(() => ({ data: [] })),
+          api('GET', '/api/donations/available?latitude=28.7041&longitude=77.1025&radius=1000').catch(() => ({ data: [] })),
+        ]);
+        requests = reqRes.data || [];
+        donations = donRes.data || [];
       } catch (e) {
-        console.warn('Could not fetch volunteer tasks:', e);
+        console.warn('Could not fetch volunteer telemetry:', e);
       }
 
       const available = requests.filter(r => r.status === 'Accepted').length;
       const inRoute = requests.filter(r => r.status === 'Assigned' || r.status === 'PickedUp').length;
 
       document.getElementById('dashboard-stats').innerHTML = `
-        <div class="stat-card"><div class="stat-icon green"><span class="material-icons-round">local_shipping</span></div><div class="stat-info"><div class="stat-value">${requests.length}</div><div class="stat-label">Available Tasks</div></div></div>
-        <div class="stat-card"><div class="stat-icon yellow"><span class="material-icons-round">pending_actions</span></div><div class="stat-info"><div class="stat-value">${available}</div><div class="stat-label">Ready for Pickup</div></div></div>
-        <div class="stat-card"><div class="stat-icon blue"><span class="material-icons-round">directions_bike</span></div><div class="stat-info"><div class="stat-value">${inRoute}</div><div class="stat-label">In Transit</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><span class="material-icons-round">inventory_2</span></div><div class="stat-info"><div class="stat-value">${donations.length}</div><div class="stat-label">Surplus Food Points</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><span class="material-icons-round">pending_actions</span></div><div class="stat-info"><div class="stat-value">${available}</div><div class="stat-label">Ready for Courier Pickup</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><span class="material-icons-round">directions_bike</span></div><div class="stat-info"><div class="stat-value">${inRoute}</div><div class="stat-label">In Transit Deliveries</div></div></div>
       `;
 
-      // Map markers from pickup locations of food to be delivered
-      const markers = requests
+      // Map markers: combine ready-to-deliver requests AND posted surplus food
+      const markers = [];
+
+      // Ready-for-pickup delivery requests
+      requests
         .filter(r => r.donationId?.pickupLocation?.coordinates?.length === 2 && r.status !== 'Cancelled')
-        .map(r => ({
-          lat: r.donationId.pickupLocation.coordinates[1],
-          lng: r.donationId.pickupLocation.coordinates[0],
-          title: `Pickup: ${r.donationId.foodType || 'Food'}`,
-          details: `${r.donationId.quantity || ''} ${r.donationId.unit || ''} • Destination: ${r.ngoId?.organizationName || r.ngoId?.username || 'Shelter'}`
-        }));
+        .forEach(r => {
+          markers.push({
+            lat: r.donationId.pickupLocation.coordinates[1],
+            lng: r.donationId.pickupLocation.coordinates[0],
+            title: `📦 Delivery Task: ${r.donationId.foodType || 'Food'}`,
+            details: `${r.donationId.quantity || ''} ${r.donationId.unit || ''} • Destination: ${r.ngoId?.organizationName || r.ngoId?.username || 'Shelter'} (Ready for Courier)`
+          });
+        });
+
+      // Available surplus donations awaiting NGO claim
+      donations
+        .filter(d => d.pickupLocation?.coordinates?.length === 2 && d.status !== 'Cancelled')
+        .forEach(d => {
+          // Avoid duplicate pin if donation is already in requests
+          const alreadyInRequests = requests.some(r => r.donationId?._id === d._id);
+          if (!alreadyInRequests) {
+            markers.push({
+              lat: d.pickupLocation.coordinates[1],
+              lng: d.pickupLocation.coordinates[0],
+              title: `🍽️ Surplus Food: ${d.foodType}`,
+              details: `${d.quantity} ${d.unit} • Status: ${d.status} • Pickup: ${d.pickupLocation?.address || 'Haryana'}`
+            });
+          }
+        });
 
       const defaultLat = markers.length ? markers[0].lat : 28.7041;
       const defaultLng = markers.length ? markers[0].lng : 77.1025;
       setTimeout(() => initInteractiveMap('map-container', defaultLat, defaultLng, markers), 100);
 
       document.getElementById('dashboard-content').innerHTML = `
-        <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;">Nearby Deliveries to Claim</h3>
+        <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;">Active Delivery Tasks & Food Points</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;">
-          ${requests.slice(0, 6).map(r => volunteerRequestCard(r)).join('') || emptyState('No active tasks nearby', 'Check "Delivery Tasks" or wait for NGOs to claim new donations!')}
+          ${requests.slice(0, 6).map(r => volunteerRequestCard(r)).join('') || emptyState('No claimed delivery tasks yet', 'Food donations shown on map above will become delivery tasks as soon as NGOs claim them!')}
         </div>
       `;
     }
@@ -961,6 +987,7 @@ async function renderAvailableRequests() {
       ? requests.map(r => volunteerRequestCard(r)).join('')
       : emptyState('No delivery tasks available', 'Check back soon for new task assignments');
   } catch (err) {
+    document.getElementById('vol-requests').innerHTML = emptyState('No Delivery Tasks Active', 'There are currently no deliveries waiting for couriers in this region.');
     toast(err.message, 'error');
   }
 }
