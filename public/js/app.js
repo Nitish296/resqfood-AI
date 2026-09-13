@@ -921,7 +921,7 @@ async function renderAvailableRequests() {
   `;
 
   try {
-    const res = await api('GET', '/api/requests/available?latitude=12.9716&longitude=77.5946&radius=500');
+    const res = await api('GET', '/api/requests/available?latitude=28.7041&longitude=77.1025&radius=1000');
     const requests = res.data || [];
     document.getElementById('vol-requests').innerHTML = requests.length
       ? requests.map(r => volunteerRequestCard(r)).join('')
