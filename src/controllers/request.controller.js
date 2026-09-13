@@ -86,9 +86,25 @@ const cancelRequest = async (req, res) => {
   ApiResponse.success(res, 'Request cancelled successfully', request);
 };
 
+/**
+ * Get deliveries claimed by authenticated volunteer
+ */
+const getVolunteerRequests = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const result = await requestService.getVolunteerRequests(req.user.id, page, limit);
+  res.status(200).json({
+    success: true,
+    message: 'Volunteer requests retrieved successfully',
+    data: result.data,
+    pagination: result.pagination
+  });
+};
+
 module.exports = {
   getAvailableRequests,
   getNgoRequests,
+  getVolunteerRequests,
   assignVolunteer,
   markPickedUp,
   markDelivered,

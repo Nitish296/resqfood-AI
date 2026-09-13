@@ -61,6 +61,26 @@ router.get('/ngo', authenticate, authorize('NGO'), requestController.getNgoReque
 
 /**
  * @openapi
+ * /api/requests/volunteer:
+ *   get:
+ *     summary: Get deliveries claimed by authenticated volunteer
+ *     description: Retrieves deliveries assigned to or in-transit with the volunteer
+ *     tags:
+ *       - Requests
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of volunteer deliveries
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Not a Volunteer)
+ */
+router.get('/volunteer', authenticate, authorize('Volunteer'), requestController.getVolunteerRequests);
+
+/**
+ * @openapi
  * /api/requests/{id}/assign:
  *   post:
  *     summary: Assign a volunteer

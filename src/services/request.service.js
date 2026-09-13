@@ -185,9 +185,31 @@ const cancelRequest = async (requestId, userId) => {
   return request;
 };
 
+/**
+ * Get deliveries claimed by a Volunteer
+ * @param {string} volunteerId
+ * @param {number} [page=1]
+ * @param {number} [limit=10]
+ * @returns {Promise<Object>}
+ */
+const getVolunteerRequests = async (volunteerId, page = 1, limit = 10) => {
+  const query = { volunteerId };
+  const skip = (page - 1) * limit;
+  const total = await Request.countDocuments(query);
+  const data = await Request.find(query)
+    .populate('donationId')
+    .populate('ngoId', 'username organizationName contactNumber address')
+    .skip(skip)
+    .limit(limit)
+    .sort({ updatedAt: -1 });
+
+  return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+};
+
 module.exports = {
   getAvailableRequests,
   getNgoRequests,
+  getVolunteerRequests,
   assignVolunteer,
   markPickedUp,
   markDelivered,

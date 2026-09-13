@@ -316,7 +316,8 @@ function getNavForRole(role) {
     case 'Volunteer':
       return [
         common[0],
-        { page: 'available-requests', icon: 'local_shipping', label: 'Delivery Tasks' },
+        { page: 'my-deliveries', icon: 'moped', label: 'My Claimed Deliveries' },
+        { page: 'available-requests', icon: 'local_shipping', label: 'Find Delivery Tasks' },
         common[1]
       ];
     case 'Admin':
@@ -343,6 +344,7 @@ function renderPage(page) {
     'my-donations': renderMyDonations,
     'available-donations': renderAvailableDonations,
     'my-requests': renderMyRequests,
+    'my-deliveries': renderMyDeliveries,
     'available-requests': renderAvailableRequests,
     'notifications': renderNotifications,
     'admin-users': renderAdminUsers,
@@ -521,33 +523,48 @@ async function renderDashboard() {
 
       setTimeout(() => initInteractiveMap('map-container', 12.9716, 77.5946, []), 100);
     } else {
-      // Volunteer Dashboard: load available delivery tasks AND available surplus food
+      // Volunteer Dashboard: load assigned deliveries, available tasks, and food points
+      let myDeliveries = [];
       let requests = [];
       let donations = [];
       try {
-        const [reqRes, donRes] = await Promise.all([
+        const [myReqRes, reqRes, donRes] = await Promise.all([
+          api('GET', '/api/requests/volunteer').catch(() => ({ data: [] })),
           api('GET', '/api/requests/available?latitude=28.7041&longitude=77.1025&radius=1000').catch(() => ({ data: [] })),
           api('GET', '/api/donations/available?latitude=28.7041&longitude=77.1025&radius=1000').catch(() => ({ data: [] })),
         ]);
+        myDeliveries = myReqRes.data || [];
         requests = reqRes.data || [];
         donations = donRes.data || [];
       } catch (e) {
         console.warn('Could not fetch volunteer telemetry:', e);
       }
 
-      const available = requests.filter(r => r.status === 'Accepted').length;
-      const inRoute = requests.filter(r => r.status === 'Assigned' || r.status === 'PickedUp').length;
+      const activeClaimed = myDeliveries.filter(r => r.status !== 'Delivered');
+      const deliveredCount = myDeliveries.filter(r => r.status === 'Delivered').length;
 
       document.getElementById('dashboard-stats').innerHTML = `
-        <div class="stat-card"><div class="stat-icon green"><span class="material-icons-round">inventory_2</span></div><div class="stat-info"><div class="stat-value">${donations.length}</div><div class="stat-label">Surplus Food Points</div></div></div>
-        <div class="stat-card"><div class="stat-icon yellow"><span class="material-icons-round">pending_actions</span></div><div class="stat-info"><div class="stat-value">${available}</div><div class="stat-label">Ready for Courier Pickup</div></div></div>
-        <div class="stat-card"><div class="stat-icon blue"><span class="material-icons-round">directions_bike</span></div><div class="stat-info"><div class="stat-value">${inRoute}</div><div class="stat-label">In Transit Deliveries</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><span class="material-icons-round">moped</span></div><div class="stat-info"><div class="stat-value">${activeClaimed.length}</div><div class="stat-label">My Claimed Deliveries</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><span class="material-icons-round">local_shipping</span></div><div class="stat-info"><div class="stat-value">${requests.length}</div><div class="stat-label">Available to Claim</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><span class="material-icons-round">check_circle</span></div><div class="stat-info"><div class="stat-value">${deliveredCount}</div><div class="stat-label">Delivered by You</div></div></div>
       `;
 
-      // Map markers: combine ready-to-deliver requests AND posted surplus food
+      // Map markers: combine claimed deliveries, available requests, and surplus food
       const markers = [];
 
-      // Ready-for-pickup delivery requests
+      // 1. Volunteer's claimed deliveries (priority)
+      activeClaimed
+        .filter(r => r.donationId?.pickupLocation?.coordinates?.length === 2)
+        .forEach(r => {
+          markers.push({
+            lat: r.donationId.pickupLocation.coordinates[1],
+            lng: r.donationId.pickupLocation.coordinates[0],
+            title: `🚀 YOUR TASK: ${r.donationId.foodType || 'Delivery'}`,
+            details: `Status: ${r.status} • Pickup: ${r.donationId.pickupLocation?.address || ''} • Deliver to: ${r.ngoId?.organizationName || 'Shelter'}`
+          });
+        });
+
+      // 2. Ready-for-pickup available requests
       requests
         .filter(r => r.donationId?.pickupLocation?.coordinates?.length === 2 && r.status !== 'Cancelled')
         .forEach(r => {
@@ -555,17 +572,16 @@ async function renderDashboard() {
             lat: r.donationId.pickupLocation.coordinates[1],
             lng: r.donationId.pickupLocation.coordinates[0],
             title: `📦 Delivery Task: ${r.donationId.foodType || 'Food'}`,
-            details: `${r.donationId.quantity || ''} ${r.donationId.unit || ''} • Destination: ${r.ngoId?.organizationName || r.ngoId?.username || 'Shelter'} (Ready for Courier)`
+            details: `${r.donationId.quantity || ''} ${r.donationId.unit || ''} • Destination: ${r.ngoId?.organizationName || r.ngoId?.username || 'Shelter'} (Available)`
           });
         });
 
-      // Available surplus donations awaiting NGO claim
+      // 3. Available surplus donations awaiting NGO claim
       donations
         .filter(d => d.pickupLocation?.coordinates?.length === 2 && d.status !== 'Cancelled')
         .forEach(d => {
-          // Avoid duplicate pin if donation is already in requests
-          const alreadyInRequests = requests.some(r => r.donationId?._id === d._id);
-          if (!alreadyInRequests) {
+          const alreadyInTasks = requests.some(r => r.donationId?._id === d._id) || activeClaimed.some(r => r.donationId?._id === d._id);
+          if (!alreadyInTasks) {
             markers.push({
               lat: d.pickupLocation.coordinates[1],
               lng: d.pickupLocation.coordinates[0],
@@ -579,12 +595,24 @@ async function renderDashboard() {
       const defaultLng = markers.length ? markers[0].lng : 77.1025;
       setTimeout(() => initInteractiveMap('map-container', defaultLat, defaultLng, markers), 100);
 
-      document.getElementById('dashboard-content').innerHTML = `
-        <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;">Active Delivery Tasks & Food Points</h3>
+      let contentHtml = '';
+      if (activeClaimed.length > 0) {
+        contentHtml += `
+          <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;color:var(--accent);">🚀 My Claimed Deliveries (In Progress)</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-bottom:32px;">
+            ${activeClaimed.map(r => volunteerRequestCard(r)).join('')}
+          </div>
+        `;
+      }
+
+      contentHtml += `
+        <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;">📍 Available Deliveries to Claim</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;">
-          ${requests.slice(0, 6).map(r => volunteerRequestCard(r)).join('') || emptyState('No claimed delivery tasks yet', 'Food donations shown on map above will become delivery tasks as soon as NGOs claim them!')}
+          ${requests.slice(0, 6).map(r => volunteerRequestCard(r)).join('') || emptyState('No other tasks nearby', 'All nearby tasks are claimed or completed!')}
         </div>
       `;
+
+      document.getElementById('dashboard-content').innerHTML = contentHtml;
     }
   } catch (err) {
     document.getElementById('dashboard-stats').innerHTML = `<p style="color:var(--text-secondary)">Could not load dashboard telemetry.</p>`;
@@ -971,6 +999,31 @@ async function renderMyRequests() {
 }
 
 // ============================================================
+// Volunteer: My Claimed Deliveries View
+// ============================================================
+async function renderMyDeliveries() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = `
+    <div class="page-header">
+      <h2>My Claimed Deliveries</h2>
+      <p>Manage pickups and drop-offs assigned to you</p>
+    </div>
+    <div id="my-deliveries-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;"><div class="spinner"></div></div>
+  `;
+
+  try {
+    const res = await api('GET', '/api/requests/volunteer');
+    const deliveries = res.data || [];
+    document.getElementById('my-deliveries-list').innerHTML = deliveries.length
+      ? deliveries.map(r => volunteerRequestCard(r)).join('')
+      : emptyState('No active deliveries assigned', 'Go to "Find Delivery Tasks" to claim your first delivery route!');
+  } catch (err) {
+    document.getElementById('my-deliveries-list').innerHTML = emptyState('No Deliveries Found', err.message || 'Could not load your deliveries');
+    toast(err.message, 'error');
+  }
+}
+
+// ============================================================
 // Volunteer: Available Tasks View
 // ============================================================
 async function renderAvailableRequests() {
@@ -1271,8 +1324,8 @@ const App = {
   async assignSelf(id) {
     try {
       await api('POST', `/api/requests/${id}/assign`);
-      toast('Delivery task claimed!', 'success');
-      renderPage(State.currentPage);
+      toast('Delivery task claimed! Viewing My Deliveries.', 'success');
+      renderPage('my-deliveries');
     } catch (err) { toast(err.message, 'error'); }
   },
 
