@@ -54,7 +54,14 @@ const upload = require('../middleware/upload');
 router.post('/', authenticate, authorize('Donor'), (req, res, next) => {
   // Only process upload if content-type is multipart/form-data
   if (req.is('multipart/form-data')) {
-    return upload.single('image')(req, res, next);
+    return upload.single('image')(req, res, (err) => {
+      if (err) {
+        // Cloudinary upload failed — skip image, continue with donation
+        console.warn('Image upload failed (Cloudinary):', err.message);
+        req.file = null;
+      }
+      next();
+    });
   }
   next();
 }, validate(createDonationValidation), donationController.createDonation);
