@@ -366,10 +366,11 @@ function initInteractiveMap(containerId, centerLat = 12.9716, centerLng = 77.594
       zoomControl: false,
     });
 
-    // OpenStreetMap Tiles (free, no API key)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // OpenStreetMap DE Mirror (free, no API key, permissive)
+    L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
+      maxZoom: 18,
+      subdomains: ['a', 'b', 'c'],
     }).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);
