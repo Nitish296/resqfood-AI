@@ -150,8 +150,9 @@ async function handleLogin(e) {
     });
     State.token = res.data.token;
     localStorage.setItem('resqfood_token', res.data.token);
+    State.user = res.data.user || { _id: res.data.userId, role: res.data.role, email: document.getElementById('login-email').value };
     toast('Welcome back to ResQFood AI!', 'success');
-    await loadUser();
+    renderApp();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -168,15 +169,14 @@ async function handleRegister(e) {
     });
     State.token = res.data.token;
     localStorage.setItem('resqfood_token', res.data.token);
+    State.user = res.data.user || { _id: res.data.userId, role: res.data.role };
     toast('Account created successfully!', 'success');
-    await loadUser();
+    renderApp();
   } catch (err) {
     toast(err.message, 'error');
   }
 }
 
-// ============================================================
-// Google Sign-In Integration
 // ============================================================
 // Google OAuth Authentication
 // ============================================================
@@ -198,16 +198,18 @@ function initGoogleButton(containerId) {
         callback: async (response) => {
           const role = document.getElementById('reg-role') ? document.getElementById('reg-role').value : 'Donor';
           try {
-            toast('Verifying Google credentials...', 'info');
+            toast('Verifying with Google...', 'info');
             const res = await api('POST', '/api/auth/google', {
               idToken: response.credential,
               role: role,
             });
             State.token = res.data.token;
             localStorage.setItem('resqfood_token', res.data.token);
+            State.user = res.data.user || { _id: res.data.userId, role: res.data.role };
             toast('Google Sign-In successful!', 'success');
-            await loadUser();
+            renderApp();
           } catch (err) {
+            console.error('[Google OAuth error]:', err);
             toast(err.message || 'Google sign-in failed', 'error');
           }
         },

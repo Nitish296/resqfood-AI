@@ -91,17 +91,21 @@ const googleLogin = async (idToken, role = 'Donor') => {
   try {
     ticket = await client.verifyIdToken({
       idToken,
-      audience: clientId,
+      audience: [
+        clientId,
+        '331103687284-b4l0gphhglaet2n48b2d4b262i639pij.apps.googleusercontent.com'
+      ],
     });
   } catch (error) {
-    throw ApiError.unauthorized('Invalid Google token');
+    console.error('[Google OAuth] Token verification failed:', error.message);
+    throw ApiError.unauthorized(`Invalid Google token: ${error.message}`);
   }
 
   const payload = ticket.getPayload();
   const { sub: googleId, email, name, picture } = payload;
 
   if (!email) {
-    throw ApiError.badRequest('Google account does not have an email');
+    throw ApiError.badRequest('Google account does not have an email address');
   }
 
   // Check if user already exists (by googleId or email)
@@ -122,6 +126,7 @@ const googleLogin = async (idToken, role = 'Donor') => {
       .replace(/[^a-z0-9_]/g, '')
       .slice(0, 20);
     if (baseUsername.length < 3) baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (baseUsername.length < 3) baseUsername = 'user_' + Math.random().toString(36).substring(2, 7);
 
     // Handle duplicate username by appending random suffix
     let username = baseUsername;
@@ -132,13 +137,27 @@ const googleLogin = async (idToken, role = 'Donor') => {
     }
 
     // Create a new user from Google profile
-    user = await User.create({
-      username,
-      email,
-      googleId,
-      role,
-      isVerified: true, // Google-verified emails are trusted
-    });
+    try {
+      user = await User.create({
+        username,
+        email: normalizedEmail,
+        googleId,
+        role: role || 'Donor',
+        isVerified: true, // Google-verified emails are trusted
+      });
+    } catch (createErr) {
+      if (createErr.code === 11000) {
+        user = await User.findOne({ email: normalizedEmail });
+        if (user) {
+          user.googleId = googleId;
+          await User.updateOne({ _id: user._id }, { $set: { googleId } });
+        } else {
+          throw createErr;
+        }
+      } else {
+        throw createErr;
+      }
+    }
   }
 
   const token = generateToken(user._id, user.role, user.email);

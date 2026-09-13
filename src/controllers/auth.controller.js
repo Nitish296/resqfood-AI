@@ -22,6 +22,8 @@ const register = async (req, res) => {
   
   ApiResponse.created(res, 'User registered successfully', {
     userId: result.user._id,
+    user: result.user,
+    role: result.user.role,
     token: result.token,
     refreshToken: result.refreshToken
   });
@@ -36,6 +38,7 @@ const login = async (req, res) => {
   
   ApiResponse.success(res, 'Login successful', {
     userId: result.user._id,
+    user: result.user,
     role: result.user.role,
     token: result.token,
     refreshToken: result.refreshToken
@@ -51,6 +54,7 @@ const googleLogin = async (req, res) => {
 
   ApiResponse.success(res, 'Google login successful', {
     userId: result.user._id,
+    user: result.user,
     role: result.user.role,
     token: result.token,
     refreshToken: result.refreshToken
