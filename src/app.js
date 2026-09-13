@@ -68,7 +68,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Serve Google Client ID to frontend (injected into page)
 app.get('/config.js', (req, res) => {
   res.type('application/javascript');
-  const clientId = process.env.GOOGLE_CLIENT_ID || '';
+  const clientId = process.env.GOOGLE_CLIENT_ID || '331103687284-b4l0gphhglaet2n48b2d4b262i639pij.apps.googleusercontent.com';
   res.send(`window.GOOGLE_CLIENT_ID = "${clientId}";`);
 });
 

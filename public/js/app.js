@@ -241,7 +241,9 @@ async function loadUser() {
     const res = await api('GET', '/api/users/me');
     State.user = res.data;
     renderApp();
-  } catch {
+  } catch (err) {
+    console.error('loadUser failed:', err);
+    toast(err.message || 'Session expired. Please sign in.', 'error');
     State.token = null;
     localStorage.removeItem('resqfood_token');
     renderAuth();

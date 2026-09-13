@@ -23,7 +23,8 @@ const authenticate = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'resqfood_dev_jwt_secret_key_min_256_bit_change_in_production';
+    const decoded = jwt.verify(token, secret);
     
     // Attach user info to request
     req.user = {

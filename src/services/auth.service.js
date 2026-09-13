@@ -82,8 +82,7 @@ const generateRefreshToken = (userId) => {
  */
 const googleLogin = async (idToken, role = 'Donor') => {
   const { OAuth2Client } = require('google-auth-library');
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  if (!clientId) throw new Error('GOOGLE_CLIENT_ID environment variable is required');
+  const clientId = process.env.GOOGLE_CLIENT_ID || '331103687284-b4l0gphhglaet2n48b2d4b262i639pij.apps.googleusercontent.com';
 
   const client = new OAuth2Client(clientId);
 
@@ -106,13 +105,14 @@ const googleLogin = async (idToken, role = 'Donor') => {
   }
 
   // Check if user already exists (by googleId or email)
-  let user = await User.findOne({ $or: [{ googleId }, { email }] });
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await User.findOne({ $or: [{ googleId }, { email: normalizedEmail }] });
 
   if (user) {
     // Link googleId if user registered via email/password before
     if (!user.googleId) {
       user.googleId = googleId;
-      await user.save();
+      await User.updateOne({ _id: user._id }, { $set: { googleId } });
     }
   } else {
     // Sanitize Google name into a valid username (no spaces, lowercase, alphanumeric + underscore)
