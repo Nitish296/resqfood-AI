@@ -540,7 +540,8 @@ html, body {
    Map Container
    ============================================================ */
 #map-container,
-#radar-map-container {
+#radar-map-container,
+#picker-map-container {
   height: 340px; width: 100%;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);

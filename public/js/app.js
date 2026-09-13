@@ -558,66 +558,140 @@ function renderCreateDonation() {
           <label>Food Verification Photo (Optional)</label>
           <input class="form-input" type="file" id="d-image" accept="image/*">
         </div>
-        <div class="form-group">
-          <label>Pickup Street Address / City</label>
-          <div style="display:flex;gap:8px;">
-            <input class="form-input" id="d-address" placeholder="e.g. Model Town, Panipat, Haryana" required>
-            <button type="button" class="btn btn-secondary" id="btn-search-address" title="Lookup GPS coordinates from address" style="white-space:nowrap;">
-              <span class="material-icons-round">search</span> Search Address
+
+        <!-- Interactive Map Location Picker -->
+        <div class="form-group" style="margin-top:20px;">
+          <label style="font-weight:700;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span>📍 Pickup Location (Click map to pin location)</span>
+          </label>
+          <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-get-location" style="display:flex;align-items:center;gap:6px;">
+              <span class="material-icons-round" style="font-size:16px;color:var(--accent);">my_location</span> Auto-Detect GPS
             </button>
+            <select class="form-input" id="quick-city" style="width:auto;flex:1;min-width:180px;padding:7px 12px;font-size:13px;">
+              <option value="">⚡ Quick Jump to Haryana City...</option>
+              <option value="30.1290,77.2674,Yamunanagar">Yamunanagar</option>
+              <option value="30.3782,76.7767,Ambala">Ambala</option>
+              <option value="29.9695,76.8783,Kurukshetra">Kurukshetra</option>
+              <option value="29.6857,76.9905,Karnal">Karnal</option>
+              <option value="29.3909,76.9635,Panipat">Panipat</option>
+              <option value="28.4595,77.0266,Gurugram">Gurugram</option>
+              <option value="28.4089,77.3178,Faridabad">Faridabad</option>
+              <option value="28.8955,76.6066,Rohtak">Rohtak</option>
+              <option value="29.1492,75.7217,Hisar">Hisar</option>
+              <option value="28.9931,77.0151,Sonipat">Sonipat</option>
+              <option value="30.6942,76.8606,Panchkula">Panchkula</option>
+            </select>
           </div>
-          <small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">
-            💡 Type your address or city in Haryana and click "Search Address", or use Auto-Detect GPS.
+          <div id="picker-map-container" style="height:280px;border-radius:14px;border:1.5px solid var(--border);overflow:hidden;margin-bottom:8px;"></div>
+          <small style="color:var(--text-muted);font-size:12px;display:block;margin-bottom:14px;">
+            💡 Tap or drag the pin anywhere on the map to set your location. Address auto-fills below!
           </small>
         </div>
-        <div class="form-group" style="margin-bottom: 20px;">
-          <button type="button" class="btn btn-secondary" id="btn-get-location" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;">
-            <span class="material-icons-round" style="color:var(--accent);">my_location</span> Auto-Detect Device GPS
-          </button>
+
+        <div class="form-group">
+          <label>Pickup Street Address (Auto-fills from map pin)</label>
+          <input class="form-input" id="d-address" placeholder="Address auto-fills from map pin" required>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="any" id="d-lat" placeholder="29.0588" required></div>
-          <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="any" id="d-lng" placeholder="76.0856" required></div>
+          <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="any" id="d-lat" placeholder="30.1290" required readonly style="background:var(--bg-secondary);"></div>
+          <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="any" id="d-lng" placeholder="77.2674" required readonly style="background:var(--bg-secondary);"></div>
         </div>
-        <button class="btn btn-primary btn-full" type="submit">
-          <span class="material-icons-round">publish</span> Submit Donation to Mesh
+        <button class="btn btn-primary btn-full" type="submit" style="margin-top:10px;">
+          <span class="material-icons-round">publish</span> Submit Donation
         </button>
       </form>
     </div>
   `;
 
-  // Search address geocoding handler
-  const searchAddress = async () => {
-    const q = document.getElementById('d-address').value.trim();
-    if (!q) {
-      toast('Please enter a street address or city first', 'warning');
-      return;
-    }
-    toast('Locating address on map...', 'info');
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const lat = parseFloat(data[0].lat).toFixed(6);
-        const lng = parseFloat(data[0].lon).toFixed(6);
-        document.getElementById('d-lat').value = lat;
-        document.getElementById('d-lng').value = lng;
-        document.getElementById('d-address').value = data[0].display_name;
-        toast(`Coordinates updated for ${data[0].name || q}!`, 'success');
-      } else {
-        toast('Address not found. Please add city or state (e.g. Haryana).', 'warning');
-      }
-    } catch (e) {
-      toast('Could not locate address automatically. You can enter coordinates manually.', 'error');
-    }
-  };
+  // Interactive Picker Map Setup
+  let pickerMap = null;
+  let pickerMarker = null;
 
-  document.getElementById('btn-search-address').onclick = searchAddress;
-  document.getElementById('d-address').onkeydown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      searchAddress();
+  function initPickerMap(initialLat = 30.1290, initialLng = 77.2674) {
+    const mapDiv = document.getElementById('picker-map-container');
+    if (!mapDiv || typeof L === 'undefined') return;
+
+    if (pickerMap) {
+      pickerMap.remove();
+      pickerMap = null;
     }
+
+    try {
+      pickerMap = L.map('picker-map-container', {
+        center: [initialLat, initialLng],
+        zoom: 12,
+        zoomControl: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18,
+        subdomains: ['a', 'b', 'c'],
+      }).addTo(pickerMap);
+
+      const pinIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: `<div style="background:#6366f1;width:18px;height:18px;border-radius:50%;box-shadow:0 0 14px rgba(99,102,241,0.6);border:3px solid white;"></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      });
+
+      pickerMarker = L.marker([initialLat, initialLng], {
+        icon: pinIcon,
+        draggable: true
+      }).addTo(pickerMap);
+
+      async function updateLocationFromCoords(lat, lng, doReverse = true) {
+        document.getElementById('d-lat').value = parseFloat(lat).toFixed(6);
+        document.getElementById('d-lng').value = parseFloat(lng).toFixed(6);
+
+        if (doReverse) {
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+            const data = await res.json();
+            if (data && data.display_name) {
+              document.getElementById('d-address').value = data.display_name;
+            }
+          } catch (e) { console.warn(e); }
+        }
+      }
+
+      pickerMarker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        updateLocationFromCoords(pos.lat, pos.lng, true);
+      });
+
+      pickerMap.on('click', (e) => {
+        pickerMarker.setLatLng(e.latlng);
+        updateLocationFromCoords(e.latlng.lat, e.latlng.lng, true);
+      });
+
+      updateLocationFromCoords(initialLat, initialLng, true);
+    } catch (e) {
+      console.error('Picker map error:', e);
+    }
+  }
+
+  // Initialize map centered in Haryana (Yamunanagar / Ambala region)
+  setTimeout(() => initPickerMap(30.1290, 77.2674), 120);
+
+  // Quick jump dropdown handler
+  document.getElementById('quick-city').onchange = (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    const parts = val.split(',');
+    const latNum = parseFloat(parts[0]);
+    const lngNum = parseFloat(parts[1]);
+    const cityName = parts[2];
+    if (pickerMap && pickerMarker) {
+      pickerMap.setView([latNum, lngNum], 13);
+      pickerMarker.setLatLng([latNum, lngNum]);
+    }
+    document.getElementById('d-lat').value = latNum.toFixed(6);
+    document.getElementById('d-lng').value = lngNum.toFixed(6);
+    document.getElementById('d-address').value = `${cityName}, Haryana`;
+    toast(`Location set to ${cityName}, Haryana!`, 'success');
   };
 
   // Auto-detect location click handler with high accuracy
@@ -626,28 +700,34 @@ function renderCreateDonation() {
       toast('Geolocation is not supported by your browser', 'error');
       return;
     }
-    toast('Detecting high-precision GPS...', 'info');
+    toast('Detecting GPS location...', 'info');
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        document.getElementById('d-lat').value = lat;
-        document.getElementById('d-lng').value = lng;
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        if (pickerMap && pickerMarker) {
+          pickerMap.setView([lat, lng], 14);
+          pickerMarker.setLatLng([lat, lng]);
+        }
+        document.getElementById('d-lat').value = lat.toFixed(6);
+        document.getElementById('d-lng').value = lng.toFixed(6);
         
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
           const data = await res.json();
           if (data && data.display_name) {
             document.getElementById('d-address').value = data.display_name;
-            toast('GPS & address detected! You can edit address if needed.', 'success');
-            return;
+            if (data.display_name.toLowerCase().includes('saharanpur')) {
+              toast('ISP routed to Saharanpur tower. Click on map to place pin in Haryana!', 'warning');
+              return;
+            }
           }
         } catch (e) { console.warn(e); }
 
-        toast('GPS coordinates detected!', 'success');
+        toast('GPS location detected!', 'success');
       },
       (err) => {
-        toast('Device GPS unavailable. Type your city/address above and click "Search Address"!', 'warning');
+        toast('Could not detect GPS. Click anywhere on the map or pick your city!', 'warning');
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
