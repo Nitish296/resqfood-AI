@@ -1180,7 +1180,21 @@ function requestCard(r) {
 }
 
 function volunteerRequestCard(r) {
+  State.requestsById = State.requestsById || {};
+  State.requestsById[r._id] = r;
+
   const donation = r.donationId || {};
+  const isClaimed = r.status === 'Assigned' || r.status === 'PickedUp';
+  
+  // Calculate coordinates for Google GPS navigation
+  const pickupLat = donation.pickupLocation?.coordinates?.[1] || 28.7041;
+  const pickupLng = donation.pickupLocation?.coordinates?.[0] || 77.1025;
+  const ngoLat = r.ngoId?.location?.coordinates?.[1] || (pickupLat + 0.015);
+  const ngoLng = r.ngoId?.location?.coordinates?.[0] || (pickupLng + 0.015);
+  const targetLat = r.status === 'PickedUp' ? ngoLat : pickupLat;
+  const targetLng = r.status === 'PickedUp' ? ngoLng : pickupLng;
+  const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`;
+
   return `
     <div class="card">
       <div class="card-header">
@@ -1191,6 +1205,16 @@ function volunteerRequestCard(r) {
         <div class="detail-row"><span class="label">Quantity</span><span>${donation.quantity || '—'} ${donation.unit || ''}</span></div>
         <div class="detail-row"><span class="label">Pickup Address</span><span>${donation.pickupLocation?.address || '—'}</span></div>
         <div class="detail-row"><span class="label">Destination NGO</span><span>${r.ngoId?.organizationName || r.ngoId?.username || '—'}</span></div>
+        ${isClaimed ? `
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-secondary" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;" onclick="App.openRouteNavigation('${r._id}')">
+              <span class="material-icons-round" style="font-size:16px;color:var(--accent);">map</span> Route & GPS
+            </button>
+            <a href="${gmapsUrl}" target="_blank" class="btn btn-sm btn-secondary" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;text-decoration:none;" title="Open in Google Maps turn-by-turn driving mode">
+              <span class="material-icons-round" style="font-size:16px;color:#4285f4;">near_me</span> Google GPS
+            </a>
+          </div>
+        ` : ''}
       </div>
       <div class="card-footer">
         ${r.status === 'Accepted' ? `<button class="btn btn-sm btn-primary" onclick="App.assignSelf('${r._id}')"><span class="material-icons-round">local_shipping</span> Claim Task</button>` : ''}
@@ -1273,9 +1297,251 @@ function initParticleCanvas() {
 }
 
 // ============================================================
+// Turn-by-Turn GPS Navigation & Route Visualizer Modal
+// ============================================================
+async function showRouteModal(r) {
+  const donation = r.donationId || {};
+  const ngo = r.ngoId || {};
+  const isPickedUp = r.status === 'PickedUp';
+
+  const pickupLat = donation.pickupLocation?.coordinates?.[1] || 28.7041;
+  const pickupLng = donation.pickupLocation?.coordinates?.[0] || 77.1025;
+  const pickupAddr = donation.pickupLocation?.address || 'Donor Pickup';
+
+  const ngoLat = ngo.location?.coordinates?.[1] || (pickupLat + 0.018);
+  const ngoLng = ngo.location?.coordinates?.[0] || (pickupLng + 0.015);
+  const ngoName = ngo.organizationName || ngo.username || 'Shelter Destination';
+
+  // Target destination based on delivery state
+  const targetLat = isPickedUp ? ngoLat : pickupLat;
+  const targetLng = isPickedUp ? ngoLng : pickupLng;
+  const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`;
+
+  // Remove existing modal if any
+  const existing = document.getElementById('route-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'route-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML = `
+    <div class="card" style="width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;box-shadow:var(--shadow-xl);border:1px solid var(--border);">
+      <!-- Header -->
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--card-bg);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="background:var(--accent);color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <span class="material-icons-round" style="font-size:22px;">navigation</span>
+          </div>
+          <div>
+            <h3 style="margin:0;font-size:18px;font-weight:700;">Live Delivery Route & GPS</h3>
+            <p style="margin:0;font-size:13px;color:var(--text-secondary);">${donation.foodType || 'Food Delivery'} ➔ ${ngoName}</p>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="App.closeRouteNavigation()" style="min-width:36px;padding:6px;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+          <span class="material-icons-round" style="font-size:20px;">close</span>
+        </button>
+      </div>
+
+      <!-- Telemetry HUD -->
+      <div style="padding:14px 20px;background:var(--bg-card-hover);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;gap:24px;align-items:center;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Road Distance</div>
+            <div id="hud-distance" style="font-size:20px;font-weight:800;color:var(--accent);">Calculating...</div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Estimated Drive Time</div>
+            <div id="hud-duration" style="font-size:20px;font-weight:800;color:var(--success);">--</div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Active Leg</div>
+            <div id="hud-step" style="font-size:13px;font-weight:700;color:var(--text-primary);margin-top:2px;">
+              ${isPickedUp ? '🏢 Step 2: Drive to NGO Shelter to complete delivery' : '🚗 Step 1: Drive to Donor to pick up food'}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a href="${gmapsUrl}" target="_blank" class="btn btn-sm btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+            <span class="material-icons-round" style="font-size:18px;">assistant_navigation</span> Open Google GPS
+          </a>
+        </div>
+      </div>
+
+      <!-- Map Viewport -->
+      <div id="route-nav-map" style="width:100%;height:420px;background:#e2e8f0;position:relative;"></div>
+
+      <!-- Footer Action Toolbar -->
+      <div style="padding:14px 20px;background:var(--card-bg);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+          <span class="material-icons-round" style="color:var(--accent);font-size:18px;">info</span>
+          <span>${isPickedUp ? `Drop-off at: <strong>${ngoName}</strong>` : `Pickup at: <strong>${pickupAddr}</strong>`}</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          ${!isPickedUp ? `
+            <button class="btn btn-sm btn-success" onclick="App.markPickup('${r._id}'); App.closeRouteNavigation();">
+              <span class="material-icons-round">inventory</span> Mark Picked Up
+            </button>
+          ` : `
+            <button class="btn btn-sm btn-success" onclick="App.markDeliver('${r._id}'); App.closeRouteNavigation();">
+              <span class="material-icons-round">check_circle</span> Mark Delivered
+            </button>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Initialize Route Leaflet Map
+  setTimeout(async () => {
+    try {
+      if (typeof L === 'undefined') return;
+
+      if (State.routeMapInstance) {
+        State.routeMapInstance.remove();
+        State.routeMapInstance = null;
+      }
+
+      const map = L.map('route-nav-map', {
+        zoomControl: false,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18,
+        subdomains: ['a', 'b', 'c'],
+      }).addTo(map);
+
+      L.control.zoom({ position: 'topright' }).addTo(map);
+
+      // Determine Volunteer start location
+      let volLat = pickupLat - 0.012;
+      let volLng = pickupLng - 0.01;
+
+      // Try browser live GPS position
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, enableHighAccuracy: true });
+          });
+          if (pos && pos.coords) {
+            volLat = pos.coords.latitude;
+            volLng = pos.coords.longitude;
+          }
+        } catch (e) {
+          // GPS denied or timed out, fallback to offset coords
+        }
+      }
+
+      // Add Custom Location Markers
+      const carIcon = L.divIcon({
+        className: 'route-marker-car',
+        html: `<div style="background:#0f172a;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(15,23,42,0.45);border:2.5px solid white;"><span class="material-icons-round" style="font-size:20px;">directions_car</span></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      });
+
+      const donorIcon = L.divIcon({
+        className: 'route-marker-donor',
+        html: `<div style="background:#10b981;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(16,185,129,0.45);border:2.5px solid white;"><span class="material-icons-round" style="font-size:20px;">store</span></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      });
+
+      const ngoIcon = L.divIcon({
+        className: 'route-marker-ngo',
+        html: `<div style="background:#8b5cf6;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(139,92,246,0.45);border:2.5px solid white;"><span class="material-icons-round" style="font-size:20px;">apartment</span></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      });
+
+      L.marker([volLat, volLng], { icon: carIcon }).addTo(map).bindPopup('<strong>You (Volunteer Courier)</strong>');
+      L.marker([pickupLat, pickupLng], { icon: donorIcon }).addTo(map).bindPopup(`<strong>Pickup Point</strong><br>${donation.foodType || 'Food'}<br>${pickupAddr}`);
+      L.marker([ngoLat, ngoLng], { icon: ngoIcon }).addTo(map).bindPopup(`<strong>Destination Shelter</strong><br>${ngoName}`);
+
+      // Query OSRM Driving Route
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${volLng},${volLat};${pickupLng},${pickupLat};${ngoLng},${ngoLat}?overview=full&geometries=geojson`;
+      
+      let routeDrawn = false;
+      try {
+        const res = await fetch(osrmUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.routes && data.routes.length > 0) {
+            const rData = data.routes[0];
+            const distKm = (rData.distance / 1000).toFixed(1);
+            const durMins = Math.max(1, Math.round(rData.duration / 60));
+
+            const distEl = document.getElementById('hud-distance');
+            const durEl = document.getElementById('hud-duration');
+            if (distEl) distEl.textContent = `${distKm} km`;
+            if (durEl) durEl.textContent = `~${durMins} mins`;
+
+            // Draw route polyline
+            const routeGeo = L.geoJSON(rData.geometry, {
+              style: {
+                color: '#6366f1',
+                weight: 6,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }
+            }).addTo(map);
+
+            map.fitBounds(routeGeo.getBounds(), { padding: [40, 40] });
+            routeDrawn = true;
+          }
+        }
+      } catch (err) {
+        console.warn('OSRM routing fetch error:', err);
+      }
+
+      // Fallback straight-line polyline if OSRM unavailable
+      if (!routeDrawn) {
+        const directLine = L.polyline([[volLat, volLng], [pickupLat, pickupLng], [ngoLat, ngoLng]], {
+          color: '#6366f1',
+          weight: 4,
+          dashArray: '8, 8',
+          opacity: 0.8
+        }).addTo(map);
+        map.fitBounds(directLine.getBounds(), { padding: [40, 40] });
+
+        const distEl = document.getElementById('hud-distance');
+        const durEl = document.getElementById('hud-duration');
+        if (distEl) distEl.textContent = 'Direct route';
+        if (durEl) durEl.textContent = 'Active';
+      }
+
+      State.routeMapInstance = map;
+    } catch (e) {
+      console.error('Error launching route map:', e);
+    }
+  }, 120);
+}
+
+// ============================================================
 // Global App Actions
 // ============================================================
 const App = {
+  openRouteNavigation(id) {
+    const r = (State.requestsById && State.requestsById[id]);
+    if (!r) {
+      toast('Delivery task details not loaded.', 'error');
+      return;
+    }
+    showRouteModal(r);
+  },
+
+  closeRouteNavigation() {
+    if (State.routeMapInstance) {
+      State.routeMapInstance.remove();
+      State.routeMapInstance = null;
+    }
+    const modal = document.getElementById('route-modal');
+    if (modal) modal.remove();
+  },
+
   navigate(page) {
     State.currentPage = page;
     renderApp();

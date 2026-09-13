@@ -44,7 +44,7 @@ const getAvailableRequests = async (lat, lng, radiusKm = 10, page = 1, limit = 1
   const total = await Request.countDocuments(query);
   const data = await Request.find(query)
     .populate('donationId')
-    .populate('ngoId', 'username organizationName contactNumber address')
+    .populate('ngoId', 'username organizationName contactNumber location address')
     .skip(skip)
     .limit(limit)
     .sort({ createdAt: -1 });
@@ -198,7 +198,7 @@ const getVolunteerRequests = async (volunteerId, page = 1, limit = 10) => {
   const total = await Request.countDocuments(query);
   const data = await Request.find(query)
     .populate('donationId')
-    .populate('ngoId', 'username organizationName contactNumber address')
+    .populate('ngoId', 'username organizationName contactNumber location address')
     .skip(skip)
     .limit(limit)
     .sort({ updatedAt: -1 });
