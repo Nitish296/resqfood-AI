@@ -383,13 +383,21 @@ function initInteractiveMap(containerId, centerLat = 12.9716, centerLng = 77.594
       iconAnchor: [10, 10]
     });
 
+    const markerGroup = [];
     markers.forEach(m => {
       if (m.lat && m.lng) {
-        L.marker([m.lat, m.lng], { icon: greenIcon })
+        const marker = L.marker([m.lat, m.lng], { icon: greenIcon })
           .addTo(map)
           .bindPopup(`<strong style="color:#0f172a">${m.title || 'Donation Location'}</strong><br>${m.details || ''}`);
+        markerGroup.push(marker);
       }
     });
+
+    // Auto-fit bounds to show all markers
+    if (markerGroup.length > 0) {
+      const group = L.featureGroup(markerGroup);
+      map.fitBounds(group.getBounds().pad(0.3));
+    }
 
     State.mapInstance = map;
   } catch (err) {
@@ -462,7 +470,10 @@ async function renderDashboard() {
           details: `${d.quantity} ${d.unit} • Status: ${d.status}`
         }));
 
-      setTimeout(() => initInteractiveMap('map-container', 12.9716, 77.5946, markers), 100);
+      // Center map on first donation, or default to user's location
+      const defaultLat = markers.length ? markers[0].lat : 20.5937;
+      const defaultLng = markers.length ? markers[0].lng : 78.9629;
+      setTimeout(() => initInteractiveMap('map-container', defaultLat, defaultLng, markers), 100);
 
       document.getElementById('dashboard-content').innerHTML = `
         <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;">Recent Postings</h3>
